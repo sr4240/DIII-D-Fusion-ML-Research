@@ -1,0 +1,124 @@
+#!/usr/bin/env python3
+"""
+Reproduce Figure 2(a) from Hu et al., "RMP ELM control unveils high ion 
+temperature with ITB in the DIII-D tokamak."
+
+Shows core ion temperature vs. electron density with NBI power as color.
+Each point is a 200 ms time-averaged value from RMP experiments.
+
+This version only plots shots with state = 1 (suppressed).
+"""
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.colors import Normalize
+from matplotlib.cm import ScalarMappable
+
+# Load data
+print("Loading data...")
+df = pd.read_csv('/mnt/homes/sr4240/my_folder/LABEL_PROPAGATED_DATABASE.csv')
+
+# Exclude specific shot numbers (these are shots that my filter for proper shots failed to exclude. Usually density/betan is still greatly increasing to a high baseline)
+excluded_shots = [193300, 193301, 193303, 194788, 195215, 195219, 195221, 195224, 195226, 195231, 195934, 195936, 195938, 195939, 195940, 195950, 195951, 195955, 195959, 196037, 196038, 198851, 199210, 199219, 199573, 199683, 199684, 200449, 200530, 200631, 200752, 200753, 200903, 200951, 200955, 201555, 201564, 201568, 201570, 201571, 201572, 201573, 201574, 201590, 201591, 201593, 201596, 202833, 203057, 203343, 203344, 203346, 203421, 203625, 203626, 203628, 203629, 203631, 203633, 203634, 203636, 204107, 204108, 204109, 204114, 204893, 204894, 204895, 204897, 204898, 204899, 204900, 204901, 204902]
+df = df[~df['shot'].isin(excluded_shots)]
+print(f"Excluded {len(excluded_shots)} shots: {excluded_shots}")
+
+# Select relevant columns (including state for filtering)
+cols = ['shot', 'time', 'state', 'cerqtit1', 'density', 'pinj']
+df = df[cols].copy()
+
+# Filter for suppressed state (state == 1)
+print(f"Original rows: {len(df)}")
+df = df[df['state'] == 1]
+print(f"Rows after filtering for suppressed state (state=1): {len(df)}")
+
+# Drop rows with missing values in key columns
+df = df.dropna(subset=['cerqtit1', 'density', 'pinj'])
+print(f"Rows after dropping NaN: {len(df)}")
+
+# Apply unit conversions
+# - density: multiply by 1e6 to get m^-3, then divide by 1e19 to get 10^19 m^-3
+# - cerqtit1: convert from eV to keV (divide by 1000)
+# - pinj: convert from kW to MW (divide by 1000)
+df['density_1e19'] = df['density'] * 1e6 / 1e19
+df['Ti_keV'] = df['cerqtit1'] / 1000
+df['P_NBI_MW'] = df['pinj'] / 1000
+
+# Print data ranges for verification
+print("\nData ranges after conversion:")
+print(f"  density (10^19 m^-3): {df['density_1e19'].min():.2f} - {df['density_1e19'].max():.2f}")
+print(f"  Ti (keV): {df['Ti_keV'].min():.2f} - {df['Ti_keV'].max():.2f}")
+print(f"  P_NBI (MW): {df['P_NBI_MW'].min():.2f} - {df['P_NBI_MW'].max():.2f}")
+
+# Create 200 ms time bins (non-overlapping)
+# Time is in milliseconds, so 200 ms bins
+df['time_bin'] = (df['time'] // 200) * 200
+
+# Group by shot and time bin, then average
+print("\nApplying 200 ms time averaging...")
+df_avg = df.groupby(['shot', 'time_bin']).agg({
+    'density_1e19': 'mean',
+    'Ti_keV': 'mean',
+    'P_NBI_MW': 'mean'
+}).reset_index()
+
+print(f"Data points after 200 ms averaging: {len(df_avg)}")
+
+# Filter data to match the figure's axis ranges
+# x-axis: 0-10 (ne in 10^19 m^-3)
+# y-axis: 0-20 (Ti in keV)
+# color: 4-10 (P_NBI in MW)
+df_plot = df_avg[
+    (df_avg['density_1e19'] >= 0) & (df_avg['density_1e19'] <= 10) &
+    (df_avg['Ti_keV'] >= 0) & (df_avg['Ti_keV'] <= 20) &
+    (df_avg['P_NBI_MW'] >= 4) & (df_avg['P_NBI_MW'] <= 10)
+].copy()
+
+print(f"Data points after filtering to figure range: {len(df_plot)}")
+
+# Create the figure
+fig, ax = plt.subplots(figsize=(8, 6))
+
+# Set up colormap - use a similar colormap to the original (viridis-like)
+cmap = plt.cm.viridis
+norm = Normalize(vmin=4, vmax=10)
+
+# Create scatter plot
+scatter = ax.scatter(
+    df_plot['density_1e19'],
+    df_plot['Ti_keV'],
+    c=df_plot['P_NBI_MW'],
+    cmap=cmap,
+    norm=norm,
+    s=15,
+    alpha=0.8,
+    edgecolors='none'
+)
+
+# Add colorbar
+cbar = plt.colorbar(ScalarMappable(norm=norm, cmap=cmap), ax=ax)
+cbar.set_label(r'$P_{\mathrm{NBI}}$ (MW)', fontsize=12)
+cbar.set_ticks([4, 5, 6, 7, 8, 9, 10])
+
+# Set axis limits
+ax.set_xlim(0, 10)
+ax.set_ylim(0, 20)
+
+# Set axis labels with proper formatting
+ax.set_xlabel(r'$n_{e}$ ($10^{19}$m$^{-3}$)', fontsize=12)
+ax.set_ylabel(r'$T_{i,0}$ (keV)', fontsize=12)
+
+# Set tick parameters
+ax.tick_params(axis='both', which='major', labelsize=10, direction='in', 
+               top=True, right=True)
+ax.set_xticks([0, 2, 4, 6, 8, 10])
+ax.set_yticks([0, 5, 10, 15, 20])
+
+# Tight layout and save
+plt.tight_layout()
+plt.savefig('/mnt/homes/sr4240/my_folder/figure_2a_reproduction_suppressed.png', dpi=300, bbox_inches='tight')
+print("\nFigure saved as 'figure_2a_reproduction_suppressed.png'")
+
+plt.show()
+
