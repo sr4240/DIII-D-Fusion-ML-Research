@@ -152,7 +152,7 @@ def load_and_prepare_data():
 
     # Select only the specified 7 features
     important_features = ['iln3iamp', 'betan', 'density', 'li',
-                         'tritop', 'fs04_max_smoothed']
+                         'tritop', 'fs04_past_max_smoothed']
     selected_features = [f for f in important_features if f in df.columns]
 
     print(f"Using {len(selected_features)} features: {selected_features}")

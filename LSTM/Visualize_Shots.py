@@ -131,7 +131,7 @@ def load_and_prepare_data():
                 fs04_rate_of_change[shot_indices[1:]] = rate
         
         df_sorted['fs04_rate_of_change'] = fs04_rate_of_change
-        selected_features.append('fs04_rate_of_change')
+        # selected_features.append('fs04_rate_of_change')  # Removed from LSTM input features
     
     print(f"Using {len(selected_features)} features: {selected_features}")
 

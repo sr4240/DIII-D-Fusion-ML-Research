@@ -312,7 +312,7 @@ def train_model(model, train_loader, val_loader, device, n_epochs=50):
         print(f"  Val Loss: {avg_val_loss:.4f}, Val Acc: {val_acc:.4f}")
 
         # Learning rate scheduling
-        scheduler.step(avg_val_loss)
+        scheduler.step(val_acc)
 
         # Early stopping
         if val_acc > best_val_acc:
